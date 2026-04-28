@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>帳單提醒</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Noto Sans TC',sans-serif;background:#f5f4f0;color:#1a1a1a;min-height:100vh;padding-bottom:40px}
+.topbar{background:#fff;border-bottom:0.5px solid #e0ddd6;padding:14px 20px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:10}
+.topbar-title{font-size:17px;font-weight:600;color:#1a1a1a}
+.topbar-date{font-size:12px;color:#888}
+.tabs{display:flex;background:#fff;border-bottom:0.5px solid #e0ddd6;position:sticky;top:53px;z-index:9}
+.tab{flex:1;padding:11px 8px;font-size:13px;font-weight:500;border:none;background:transparent;cursor:pointer;color:#888;border-bottom:2px solid transparent;transition:all 0.15s;font-family:inherit}
+.tab.active{color:#1a1a1a;border-bottom-color:#1a1a1a}
+.content{max-width:600px;margin:0 auto;padding:16px 16px 0}
+.section{display:none}.section.active{display:block}
+
+.empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 20px;gap:12px}
+.empty-icon{font-size:40px;opacity:0.25}
+.empty-title{font-size:15px;font-weight:500;color:#666}
+.empty-sub{font-size:13px;color:#999;text-align:center;line-height:1.6}
+.empty-btn{margin-top:10px;padding:10px 22px;font-size:14px;font-weight:500;border:0.5px solid #ccc;background:#fff;border-radius:10px;cursor:pointer;color:#1a1a1a;font-family:inherit}
+.empty-btn:hover{background:#f5f4f0}
+
+.alert-banner{background:#fff5f5;border:0.5px solid #fca5a5;border-radius:12px;padding:12px 16px;margin-bottom:14px}
+.alert-header{display:flex;align-items:center;gap:6px;margin-bottom:8px}
+.alert-dot{width:6px;height:6px;border-radius:50%;background:#dc2626;flex-shrink:0}
+.alert-title{font-size:11px;font-weight:600;color:#dc2626;text-transform:uppercase;letter-spacing:0.06em}
+.alert-item{font-size:13px;color:#b91c1c;padding:4px 0;display:flex;justify-content:space-between;border-top:0.5px solid rgba(220,38,38,0.1)}
+.alert-item:first-of-type{border-top:none}
+
+.stat-row{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px}
+.stat-card{background:#fff;border-radius:10px;padding:12px 14px;border:0.5px solid #e8e5df}
+.stat-label{font-size:11px;color:#999;margin-bottom:5px}
+.stat-val{font-size:20px;font-weight:600;color:#1a1a1a}
+.stat-val.danger{color:#dc2626}
+.stat-val.success{color:#16a34a}
+
+.filter-row{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}
+.filter-btn{font-size:12px;padding:5px 13px;border-radius:20px;border:0.5px solid #ddd;background:#fff;cursor:pointer;color:#666;font-family:inherit;transition:all 0.15s}
+.filter-btn.active{background:#1a1a1a;color:#fff;border-color:#1a1a1a}
+
+.group-label{font-size:11px;font-weight:600;color:#999;letter-spacing:0.05em;text-transform:uppercase;margin:14px 0 6px;padding-bottom:6px;border-bottom:0.5px solid #e8e5df;display:flex;align-items:center;justify-content:space-between}
+.overdue-badge{background:#fee2e2;color:#dc2626;font-size:10px;padding:2px 7px;border-radius:8px;font-weight:600;letter-spacing:0;text-transform:none}
+.bills-list{display:flex;flex-direction:column;gap:6px;margin-bottom:4px}
+.bill-card{background:#fff;border:0.5px solid #e8e5df;border-radius:12px;padding:12px 14px;display:flex;align-items:center;gap:10px;transition:opacity 0.2s}
+.bill-card.paid{opacity:0.45}
+.bill-card.overdue{border-color:#fca5a5}
+.cat-pill{display:flex;align-items:center;gap:4px;padding:5px 10px;border-radius:20px;font-size:12px;font-weight:500;flex-shrink:0;white-space:nowrap}
+.bill-mid{flex:1;min-width:0}
+.bill-name{font-size:14px;font-weight:500;color:#1a1a1a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bill-month{font-size:12px;color:#999;margin-top:2px}
+.bill-right{text-align:right;flex-shrink:0}
+.bill-amount{font-size:15px;font-weight:600;color:#1a1a1a}
+.due-tag{font-size:11px;margin-top:2px}
+.due-ok{color:#999}
+.due-warn{color:#d97706;font-weight:500}
+.due-urgent{color:#dc2626;font-weight:500}
+.due-paid{color:#16a34a;font-weight:500}
+.check-btn{width:28px;height:28px;border-radius:50%;border:1.5px solid #ccc;background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;transition:all 0.15s;color:transparent;font-family:inherit}
+.check-btn:hover{border-color:#16a34a;background:#f0fdf4}
+.check-btn.paid{background:#dcfce7;border-color:#86efac;color:#16a34a}
+.delete-btn{background:none;border:none;font-size:13px;color:#ccc;cursor:pointer;padding:4px;flex-shrink:0;line-height:1}
+.delete-btn:hover{color:#dc2626}
+
+.form-card{background:#fff;border:0.5px solid #e8e5df;border-radius:14px;padding:20px;margin-bottom:12px}
+.form-card h2{font-size:15px;font-weight:600;margin-bottom:18px;color:#1a1a1a}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+.form-group{display:flex;flex-direction:column;gap:6px}
+.form-group.full{grid-column:1/-1}
+label{font-size:12px;color:#666;font-weight:500}
+input,select{font-family:inherit;font-size:14px;padding:9px 12px;border:0.5px solid #ddd;border-radius:8px;background:#fff;color:#1a1a1a;outline:none;width:100%;-webkit-appearance:none}
+input:focus,select:focus{border-color:#1a1a1a}
+.amount-wrap{position:relative}
+.amount-wrap span{position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:14px;color:#999;pointer-events:none}
+.amount-wrap input{padding-left:26px}
+.btn-add{background:#1a1a1a;color:#fff;border:none;padding:12px 20px;border-radius:10px;font-size:14px;font-weight:500;cursor:pointer;width:100%;margin-top:6px;font-family:inherit}
+.btn-add:hover{background:#333}
+
+.month-group{margin-bottom:20px}
+.month-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;padding-bottom:8px;border-bottom:0.5px solid #e8e5df}
+.month-title{font-size:13px;font-weight:600;color:#1a1a1a}
+.month-badges{display:flex;gap:6px}
+.badge{font-size:11px;padding:2px 8px;border-radius:10px;font-weight:500}
+.badge-paid{background:#dcfce7;color:#16a34a}
+.badge-pend{background:#fef9c3;color:#a16207}
+
+@media(max-width:480px){
+  .form-row{grid-template-columns:1fr}
+  .stat-val{font-size:17px}
+  .cat-pill{font-size:11px;padding:4px 8px}
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-title">帳單提醒</div>
+  <div class="topbar-date" id="topDate"></div>
+</div>
+
+<div class="tabs">
+  <button class="tab active" onclick="switchTab('home',this)">待繳帳單</button>
+  <button class="tab" onclick="switchTab('add',this)">新增帳單</button>
+  <button class="tab" onclick="switchTab('history',this)">繳費記錄</button>
+</div>
+
+<div class="content">
+
+  <div id="home" class="section active">
+    <div id="alertBanner" style="display:none" class="alert-banner">
+      <div class="alert-header"><div class="alert-dot"></div><span class="alert-title">需要注意</span></div>
+      <div id="alertList"></div>
+    </div>
+    <div class="stat-row">
+      <div class="stat-card"><div class="stat-label">待繳筆數</div><div class="stat-val danger" id="s1">0</div></div>
+      <div class="stat-card"><div class="stat-label">待繳總額</div><div class="stat-val danger" id="s2">$0</div></div>
+      <div class="stat-card"><div class="stat-label">本月已繳</div><div class="stat-val success" id="s3">0</div></div>
+    </div>
+    <div class="filter-row" id="catFilters"></div>
+    <div id="homeList"></div>
+  </div>
+
+  <div id="add" class="section">
+    <div class="form-card">
+      <h2>新增帳單</h2>
+      <div class="form-row">
+        <div class="form-group">
+          <label>帳單名稱</label>
+          <input type="text" id="fName" list="nameList" placeholder="台灣大哥大、台電…" oninput="autoCat()"/>
+          <datalist id="nameList"></datalist>
+        </div>
+        <div class="form-group">
+          <label>類別</label>
+          <select id="fCat">
+            <option value="電話費">📱 電話費</option>
+            <option value="水費">💧 水費</option>
+            <option value="電費">⚡ 電費</option>
+            <option value="瓦斯費">🔥 瓦斯費</option>
+            <option value="網路費">🌐 網路費</option>
+            <option value="房租">🏠 房租</option>
+            <option value="保險費">🛡 保險費</option>
+            <option value="信用卡">💳 信用卡</option>
+            <option value="其他">📋 其他</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>帳單月份</label>
+          <input type="month" id="fMonth"/>
+        </div>
+        <div class="form-group">
+          <label>繳費期限</label>
+          <input type="date" id="fDue"/>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group full">
+          <label>金額（NT$）</label>
+          <div class="amount-wrap"><span>$</span><input type="number" id="fAmt" placeholder="0" min="0"/></div>
+        </div>
+      </div>
+      <button class="btn-add" onclick="addBill()">新增帳單</button>
+    </div>
+  </div>
+
+  <div id="history" class="section">
+    <div class="stat-row">
+      <div class="stat-card"><div class="stat-label">全部帳單</div><div class="stat-val" id="h1">0</div></div>
+      <div class="stat-card"><div class="stat-label">已繳總額</div><div class="stat-val success" id="h2">$0</div></div>
+      <div class="stat-card"><div class="stat-label">未繳總額</div><div class="stat-val danger" id="h3">$0</div></div>
+    </div>
+    <div class="filter-row">
+      <button class="filter-btn active" onclick="setHF('all',this)">全部</button>
+      <button class="filter-btn" onclick="setHF('unpaid',this)">未繳</button>
+      <button class="filter-btn" onclick="setHF('paid',this)">已繳</button>
+    </div>
+    <div id="historyList"></div>
+  </div>
+
+</div>
+
+<script>
+const CAT_ICON={'電話費':'📱','水費':'💧','電費':'⚡','瓦斯費':'🔥','網路費':'🌐','房租':'🏠','保險費':'🛡','信用卡':'💳','其他':'📋'};
+const CAT_BG={'電話費':'#dbeafe','水費':'#d1fae5','電費':'#fef3c7','瓦斯費':'#fee2e2','網路費':'#ede9fe','房租':'#dcfce7','保險費':'#dcfce7','信用卡':'#fce7f3','其他':'#f3f4f6'};
+const CAT_FG={'電話費':'#1d4ed8','水費':'#065f46','電費':'#92400e','瓦斯費':'#991b1b','網路費':'#5b21b6','房租':'#14532d','保險費':'#14532d','信用卡':'#9d174d','其他':'#374151'};
+const nameToCat={};
+let bills=[], savedNames=[], activeCat='all', activeHF='all';
+
+function load(){
+  try{bills=JSON.parse(localStorage.getItem('br_bills')||'[]');savedNames=JSON.parse(localStorage.getItem('br_names')||'[]');}catch(e){bills=[];savedNames=[];}
+  bills.forEach(b=>{if(!nameToCat[b.name])nameToCat[b.name]=b.cat;});
+}
+function save(){
+  try{localStorage.setItem('br_bills',JSON.stringify(bills));localStorage.setItem('br_names',JSON.stringify(savedNames));}catch(e){}
+}
+function days(d){if(!d)return 999;const t=new Date();t.setHours(0,0,0,0);return Math.ceil((new Date(d)-t)/86400000);}
+function thisMonth(){const n=new Date();return`${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}`;}
+function autoCat(){const n=document.getElementById('fName').value;if(nameToCat[n])document.getElementById('fCat').value=nameToCat[n];}
+function refreshNames(){document.getElementById('nameList').innerHTML=savedNames.map(n=>`<option value="${n}">`).join('');}
+
+function addBill(){
+  const name=document.getElementById('fName').value.trim();
+  const cat=document.getElementById('fCat').value;
+  const month=document.getElementById('fMonth').value;
+  const due=document.getElementById('fDue').value;
+  const amount=parseInt(document.getElementById('fAmt').value)||0;
+  if(!name||!month||!due||!amount){alert('請填寫所有欄位');return;}
+  bills.push({id:Date.now(),name,cat,month,due,amount,paid:false,paidDate:null});
+  if(!savedNames.includes(name)){savedNames.push(name);nameToCat[name]=cat;}
+  save();refreshNames();renderAll();
+  document.getElementById('fName').value='';
+  document.getElementById('fAmt').value='';
+  switchTab('home',document.querySelectorAll('.tab')[0]);
+}
+
+function togglePaid(id){
+  const b=bills.find(x=>x.id===id);if(!b)return;
+  b.paid=!b.paid;b.paidDate=b.paid?new Date().toISOString().split('T')[0]:null;
+  save();renderAll();
+}
+function deleteBill(id){
+  if(!confirm('確定刪除這筆帳單？'))return;
+  bills=bills.filter(x=>x.id!==id);save();renderAll();
+}
+function switchTab(t,el){
+  document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));
+  if(el)el.classList.add('active');
+  document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+  document.getElementById(t).classList.add('active');
+}
+function setCatF(c,el){activeCat=c;document.querySelectorAll('#catFilters .filter-btn').forEach(b=>b.classList.remove('active'));el.classList.add('active');renderHome();}
+function setHF(f,el){activeHF=f;document.querySelectorAll('#history .filter-row .filter-btn').forEach(b=>b.classList.remove('active'));el.classList.add('active');renderHistory();}
+
+function dueTag(b){
+  if(b.paid)return`<div class="due-tag due-paid">✓ 已繳清</div>`;
+  const d=days(b.due);
+  if(d<0)return`<div class="due-tag due-urgent">逾期 ${Math.abs(d)} 天</div>`;
+  if(d===0)return`<div class="due-tag due-urgent">今天到期！</div>`;
+  if(d<=3)return`<div class="due-tag due-urgent">還有 ${d} 天</div>`;
+  if(d<=7)return`<div class="due-tag due-warn">還有 ${d} 天</div>`;
+  return`<div class="due-tag due-ok">截止 ${b.due}</div>`;
+}
+
+function billHTML(b,showDel=false){
+  const bg=CAT_BG[b.cat]||'#f3f4f6';
+  const fc=CAT_FG[b.cat]||'#374151';
+  const icon=CAT_ICON[b.cat]||'📋';
+  const isOverdue=!b.paid&&days(b.due)<0;
+  return`<div class="bill-card ${b.paid?'paid':''} ${isOverdue?'overdue':''}">
+    <div class="cat-pill" style="background:${bg};color:${fc}">${icon} ${b.cat}</div>
+    <div class="bill-mid">
+      <div class="bill-name">${b.name}</div>
+      <div class="bill-month">${b.month}</div>
+    </div>
+    <div class="bill-right">
+      <div class="bill-amount">$${b.amount.toLocaleString()}</div>
+      ${dueTag(b)}
+    </div>
+    <button class="check-btn ${b.paid?'paid':''}" onclick="togglePaid(${b.id})" title="${b.paid?'取消已繳':'標記已繳'}">${b.paid?'✓':''}</button>
+    ${showDel?`<button class="delete-btn" onclick="deleteBill(${b.id})" title="刪除">✕</button>`:''}
+  </div>`;
+}
+
+function renderHome(){
+  const tm=thisMonth();
+  const allUnpaid=bills.filter(b=>!b.paid);
+  const filtered=activeCat==='all'?allUnpaid:allUnpaid.filter(b=>b.cat===activeCat);
+  const thisMonthPaid=bills.filter(b=>b.paid&&b.month===tm).length;
+
+  document.getElementById('s1').textContent=allUnpaid.length;
+  document.getElementById('s2').textContent='$'+allUnpaid.reduce((s,b)=>s+b.amount,0).toLocaleString();
+  document.getElementById('s3').textContent=thisMonthPaid;
+
+  const urgent=allUnpaid.filter(b=>days(b.due)<=5);
+  const banner=document.getElementById('alertBanner');
+  if(urgent.length){
+    banner.style.display='';
+    document.getElementById('alertList').innerHTML=urgent.map(b=>{
+      const d=days(b.due);
+      const lbl=d<0?`逾期${Math.abs(d)}天`:d===0?'今天到期':`還有${d}天`;
+      return`<div class="alert-item"><span>${b.name}（${b.month}）</span><span>$${b.amount.toLocaleString()} · ${lbl}</span></div>`;
+    }).join('');
+  }else{banner.style.display='none';}
+
+  const cats=[...new Set(allUnpaid.map(b=>b.cat))];
+  document.getElementById('catFilters').innerHTML=
+    `<button class="filter-btn ${activeCat==='all'?'active':''}" onclick="setCatF('all',this)">全部</button>`+
+    cats.map(c=>`<button class="filter-btn ${activeCat===c?'active':''}" onclick="setCatF('${c}',this)">${CAT_ICON[c]||''} ${c}</button>`).join('');
+
+  const list=document.getElementById('homeList');
+  if(!allUnpaid.length){
+    list.innerHTML=`<div class="empty-state"><div class="empty-icon">🎉</div><div class="empty-title">目前沒有待繳帳單</div><div class="empty-sub">所有帳單都已繳清，或尚未新增帳單</div><button class="empty-btn" onclick="switchTab('add',document.querySelectorAll('.tab')[1])">新增帳單 →</button></div>`;
+    return;
+  }
+  if(!filtered.length){list.innerHTML=`<div class="empty-state"><div class="empty-icon">🔍</div><div class="empty-title">此類別無待繳帳單</div></div>`;return;}
+
+  const overdue=filtered.filter(b=>days(b.due)<0).sort((a,b)=>days(a.due)-days(b.due));
+  const upcoming=filtered.filter(b=>days(b.due)>=0).sort((a,b)=>days(a.due)-days(b.due));
+
+  let html='';
+  if(overdue.length){
+    html+=`<div class="group-label"><span>逾期未繳 ${overdue.length} 筆</span><span class="overdue-badge">請盡快處理</span></div>`;
+    html+=`<div class="bills-list">${overdue.map(b=>billHTML(b)).join('')}</div>`;
+  }
+  if(upcoming.length){
+    html+=`<div class="group-label">即將到期 ${upcoming.length} 筆</div>`;
+    html+=`<div class="bills-list">${upcoming.map(b=>billHTML(b)).join('')}</div>`;
+  }
+  list.innerHTML=html;
+}
+
+function renderHistory(){
+  const paid=bills.filter(b=>b.paid);
+  const unpaid=bills.filter(b=>!b.paid);
+  document.getElementById('h1').textContent=bills.length;
+  document.getElementById('h2').textContent='$'+paid.reduce((s,b)=>s+b.amount,0).toLocaleString();
+  document.getElementById('h3').textContent='$'+unpaid.reduce((s,b)=>s+b.amount,0).toLocaleString();
+  let filtered=bills;
+  if(activeHF==='paid')filtered=paid;
+  if(activeHF==='unpaid')filtered=unpaid;
+  const byMonth={};
+  filtered.forEach(b=>{if(!byMonth[b.month])byMonth[b.month]=[];byMonth[b.month].push(b);});
+  const months=Object.keys(byMonth).sort().reverse();
+  const list=document.getElementById('historyList');
+  if(!months.length){list.innerHTML=`<div class="empty-state"><div class="empty-icon">📋</div><div class="empty-title">還沒有帳單記錄</div></div>`;return;}
+  list.innerHTML=months.map(m=>{
+    const mb=byMonth[m];
+    const pc=mb.filter(b=>b.paid).length;
+    const uc=mb.length-pc;
+    return`<div class="month-group">
+      <div class="month-header">
+        <div class="month-title">${m}</div>
+        <div class="month-badges">
+          ${pc?`<span class="badge badge-paid">已繳 ${pc}</span>`:''}
+          ${uc?`<span class="badge badge-pend">待繳 ${uc}</span>`:''}
+        </div>
+      </div>
+      <div class="bills-list">${mb.map(b=>billHTML(b,true)).join('')}</div>
+    </div>`;
+  }).join('');
+}
+
+function renderAll(){renderHome();renderHistory();}
+
+function init(){
+  load();
+  const now=new Date();
+  document.getElementById('topDate').textContent=now.toLocaleDateString('zh-TW',{year:'numeric',month:'long',day:'numeric'});
+  document.getElementById('fMonth').value=thisMonth();
+  refreshNames();
+  renderAll();
+}
+init();
+</script>
+</body>
+</html>
